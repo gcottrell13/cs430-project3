@@ -107,8 +107,19 @@ Object get_color_ray(float* color, Scene scene, float* r0, float* rd)
 
 		float light_dir[3];
 		
-		subtract(intersection.point, light.position, light_dir);
+		// this is flipped on purpose to facilitate finding a shadow
+		subtract(light.position, intersect_point, light_dir);
 		normalize(light_dir);
+
+		// test for a shadow intersection
+		float shadow_t;
+		int shadow_object_id = send_ray(&shadow_t, scene, intersect_point, light_dir, closest_id);
+
+		// if there is an object between this object and the light, don't light it
+		if(shadow_object_id != -1) continue;
+
+		// flip the light vector to point in the proper direction
+		scale(light_dir, -1, light_dir);
 
 		float normal[3];
 
