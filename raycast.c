@@ -8,6 +8,11 @@
 #define AMBIENT_G 0.15
 #define AMBIENT_B 0.15
 
+typedef struct {
+	float point[3];
+	Object* object;
+} Intersection;
+
 float intersect_sphere(float* c, float R, float* r0, float* rd)
 {
 	// A = xd^2 + yd^2 + zd^2
@@ -35,11 +40,10 @@ float intersect_plane(float a, float b, float c, float d, float* r0, float* rd)
 }
 
 // returns the scene's object id that intersects the ray
-int send_ray(float* out_t, Scene scene, float* r0, float* rd, int avoid)
+Intersection send_ray(Scene scene, float* r0, float* rd, int avoid)
 {
 	float best_t = INFINITY;
-	Object closest;
-	int closest_id = -1;
+	Object* closest = NULL;
 
 	int k;
 	for(k = 0; k < scene.num_objects; k ++)
@@ -63,34 +67,32 @@ int send_ray(float* out_t, Scene scene, float* r0, float* rd, int avoid)
 		if(t > 0 && t < best_t)
 		{
 			best_t = t;
-			closest = o;
-			closest_id = k;
+			closest = &o;
 		}
 	}
-
-	*out_t = best_t; 
-	return closest_id;
+	
+	Intersection i; // an intersection struct
+	scale(rd, best_t, i.point); // scale rd by best_t
+	add(i.point, r0, i.point); // then add that to r0
+	
+	i.object = closest;
+	
+	return i;
 }
 
 Object get_color_ray(float* color, Scene scene, float* r0, float* rd)
 {
-	float best_t;
-	int closest_id = send_ray(&best_t, scene, r0, rd, -1);
-	Object closest;
+	Intersection intersection = send_ray(scene, r0, rd, -1);
 
-	if(closest_id == -1)
+	if(intersection.object == NULL)
 	{
 		color[0] = scene.background_color[0];
 		color[1] = scene.background_color[1];
 		color[2] = scene.background_color[2];
-		return closest;
+		return NULL;
 	}
 
-	closest = scene.objects[closest_id];
-	float intersect_point[3];
-
-	scale(rd, best_t, intersect_point);
-	add(intersect_point, r0, intersect_point);
+	Object closest = *(intersection.object);
 
 	// do lighting on the object
 	float lighting[3];
@@ -105,14 +107,14 @@ Object get_color_ray(float* color, Scene scene, float* r0, float* rd)
 
 		float light_dir[3];
 		
-		subtract(intersect_point, light.position, light_dir);
+		subtract(intersection.point, light.position, light_dir);
 		normalize(light_dir);
 
 		float normal[3];
 
 		if(closest.kind == T_SPHERE)
 		{
-			subtract(intersect_point, closest.position, normal);
+			subtract(intersection.point, closest.position, normal);
 			normalize(normal);
 		}
 		else if(closest.kind == T_PLANE)
@@ -184,7 +186,7 @@ void raycast(Scene scene, char* outfile, PPMmeta fileinfo)
 			
 			float colors[3];
 
-			Object closest = get_color_ray(colors, scene, r0, rd);
+			Object* closest = get_color_ray(colors, scene, r0, rd);
 			//printf("%f %f %f\n", rd[0], rd[1], rd[2]);
 
 			colors[0] = clamp(colors[0], 0.0, 1.0);
@@ -192,9 +194,20 @@ void raycast(Scene scene, char* outfile, PPMmeta fileinfo)
 			colors[2] = clamp(colors[2], 0.0, 1.0);
 
 			Pixel pixel = data[i * N + j];
-			pixel.r = (unsigned char) (colors[0] * 255 * (1 - closest.transparency));
-			pixel.g = (unsigned char) (colors[1] * 255 * (1 - closest.transparency));
-			pixel.b = (unsigned char) (colors[2] * 255 * (1 - closest.transparency));
+			
+			if(closest == NULL)
+			{
+				pixel.r = (unsigned char) (colors[0] * 255);
+				pixel.g = (unsigned char) (colors[1] * 255);
+				pixel.b = (unsigned char) (colors[2] * 255);
+			}
+			else
+			{
+				pixel.r = (unsigned char) (colors[0] * 255 * (1 - closest->transparency));
+				pixel.g = (unsigned char) (colors[1] * 255 * (1 - closest->transparency));
+				pixel.b = (unsigned char) (colors[2] * 255 * (1 - closest->transparency));
+			}
+			
 			data[i * N + j] = pixel;
 			
 		}
