@@ -128,11 +128,29 @@ Object get_color_ray(float* color, Scene scene, float* r0, float* rd)
 
 		float incident_light_level = -dot(normal, light_dir);
 		if(incident_light_level > 0)
-		{
+		{			
+			// do specular highlight
+				float spec[3];
+
+				// reflect the light normal across the surface normal
+				// r = d - 2(d*n)n
+				float r[3];
+				scale(normal, dot(light_dir, normal) * 2, r);
+				subtract(light_dir, r, r);
+
+				float v[3];
+				scale(rd, -1, v);
+
+				float speck = powf(dot(r, v), SPEC_FALL) * SPEC_K;
+				scale(light.color, speck, spec);
+				multiply(closest.specular, spec, spec);
+				
 			// do diffuse lighting
 				float diffuse[3];
 				scale(closest.color, incident_light_level * DIFFUSE_K, diffuse);
-
+			
+			if(speck > 0)
+				add(spec, lighting, lighting);
 			add(diffuse, lighting, lighting);
 		}
 	}
