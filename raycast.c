@@ -104,6 +104,8 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, float opacit
 
 		float light_dir[3];
 		float dir_to_light[3];
+
+		float normal[3];
 		
 		// distance to light
 		float dist[3];
@@ -129,8 +131,6 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, float opacit
 				continue;
 		}
 
-		float normal[3];
-
 		if(closest->kind == T_SPHERE)
 		{
 			subtract(intersection.point, closest->position, normal);
@@ -144,7 +144,7 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, float opacit
 		}
 
 		// (Xs - Xl) / ||Xs-Xl||
-
+		
 		float incident_light_level = -dot(normal, light_dir);
 		if(incident_light_level > 0)
 		{
@@ -154,9 +154,9 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, float opacit
 			Ic[2] = 0;
 
 			// calculate attenuation
-				float attenuation = 1.0;
+				float attenuation = pow(dot(dir_to_light, normal), light.d) / 
+					(light.a * sqr(distance_to_light) + light.b * distance_to_light + light.c);
 				
-
 			// do specular highlight
 				float spec[3];
 
@@ -176,8 +176,7 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, float opacit
 			// do diffuse lighting
 				float diffuse[3];
 				scale(closest->color, incident_light_level * DIFFUSE_K, diffuse);
-			
-
+				
 			if(speck > 0)
 			{
 				add(spec, diffuse, Ic);
