@@ -60,9 +60,14 @@ void cross(float* a, float*b, float* out)
 	out[2] = a[0]*b[1] - a[1]*b[0];
 }
 
+float length(float* a)
+{
+	return sqrt(sqr(a[0]) + sqr(a[1]) + sqr(a[2]));
+}
+
 void normalize(float* a)
 {
-	float len = sqrt(sqr(a[0]) + sqr(a[1]) + sqr(a[2]));
+	float len = length(a);
 	a[0] /= len;
 	a[1] /= len;
 	a[2] /= len;

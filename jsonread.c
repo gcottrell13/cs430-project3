@@ -4,32 +4,7 @@
 #define T_PLANE 3
 #define T_LIGHT 4
 
-#define MAX_OBJECTS 128
-#define MAX_LIGHTS 10
-
 int line = 1;
-
-typedef struct {
-	int kind;
-	float color[3]; // also diffuse color for non-lights
-	float position[3];
-	float a;
-	float b;
-	float c;
-	float d;
-	float specular[3];
-	float transparency;
-} Object;
-
-typedef struct {
-	int num_objects;
-	Object objects[MAX_OBJECTS + 1];
-	int num_lights;
-	Object lights[MAX_LIGHTS + 1];
-	float camera_width;
-	float camera_height;
-	float background_color[3]; // for fun!
-} Scene;
 
 int next_c(FILE* file)
 {
@@ -187,8 +162,13 @@ Scene read_scene(char* json_name)
 		specular[0] = 1.0;
 		specular[1] = 1.0;
 		specular[2] = 1.0;
-		//int set_angle = 0;
-		float angle = 3.14 / 2.;
+
+		float angular_a0 = 0;
+		float radial_a0 = 0;
+		float radial_a1 = 0;
+		float radial_a2 = 1;
+
+		float transparency = 0;
 
 		Object new_object = scene.objects[scene.num_objects];
 		
@@ -258,11 +238,30 @@ Scene read_scene(char* json_name)
 						set_camera_height = 1;
 					}
 				}
-				else if(strcmp(key, "angle") == 0)
+				else if(strcmp(key, "angular-a0") == 0)
 				{
 					float value = next_number(json);
-					angle = value;
-					//set_angle = 1;
+					angular_a0 = value;
+				}
+				else if(strcmp(key, "radial-a0") == 0)
+				{
+					float value = next_number(json);
+					radial_a0 = value;
+				}
+				else if(strcmp(key, "radial-a1") == 0)
+				{
+					float value = next_number(json);
+					radial_a1 = value;
+				}
+				else if(strcmp(key, "radial-a2") == 0)
+				{
+					float value = next_number(json);
+					radial_a2 = value;
+				}
+				else if(strcmp(key, "transparency") == 0)
+				{
+					float value = next_number(json);
+					transparency = value;
 				}
 				else if(strcmp(key, "specular_color") == 0)
 				{
@@ -386,7 +385,8 @@ Scene read_scene(char* json_name)
 			new_object.position[1] = position[1];
 			new_object.position[2] = position[2];
 			new_object.d = radius;
-			
+
+			new_object.transparency = transparency;
 		}
 		if(objtype == T_PLANE)
 		{
@@ -421,6 +421,7 @@ Scene read_scene(char* json_name)
 			new_object.c = normal[2];
 			new_object.d = normal[0] * position[0] + normal[1] * position[1] + normal[2] * position[2];
 			
+			new_object.transparency = transparency;
 		}
 		if(objtype == T_LIGHT)
 		{
@@ -434,16 +435,6 @@ Scene read_scene(char* json_name)
 				fprintf(stderr, "Object must have a position! Line %d\n", line);
 				exit(1);
 			}
-			if(set_normal != 1)
-			{
-				fprintf(stderr, "Plane must have a normal vector! Line %d\n", line);
-				exit(1);
-			}
-			if(normal[0] == 0 && normal[1] == 0 && normal[2] == 0)
-			{
-				fprintf(stderr, "Normal vector must be non-zero! Line %d\n", line);
-				exit(1);
-			}
 			
 			// calculate the properties of the plane
 
@@ -454,11 +445,11 @@ Scene read_scene(char* json_name)
 			new_object.position[0] = position[0];
 			new_object.position[1] = position[1];
 			new_object.position[2] = position[2];
-			normalize(normal);
-			new_object.a = normal[0];
-			new_object.b = normal[1];
-			new_object.c = normal[2];
-			new_object.d = angle;
+			//normalize(normal);
+			new_object.a = radial_a2;
+			new_object.b = radial_a1;
+			new_object.c = radial_a0;
+			new_object.d = angular_a0;
 			
 		}
 		

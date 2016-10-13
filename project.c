@@ -3,33 +3,42 @@
 #include <string.h>
 #include <ctype.h>
 
+#define MAX_OBJECTS 128
+#define MAX_LIGHTS 10
+
+typedef struct {
+	int kind;
+	float color[3]; // also diffuse color for non-lights
+	float position[3];
+	float direction[3]; // for lights only
+	float a;
+	float b;
+	float c;
+	float d;
+	float specular[3];
+	float transparency;
+} Object;
+
+typedef struct {
+	int num_objects;
+	Object objects[MAX_OBJECTS + 1];
+	int num_lights;
+	Object lights[MAX_LIGHTS + 1];
+	float camera_width;
+	float camera_height;
+	float background_color[3]; // for fun!
+} Scene;
+
+typedef struct {
+	float point[3];
+	Object* object;
+	int object_id;
+} Intersection;
+
 #include "3dmath.c"
 #include "imageread.c"
 #include "jsonread.c"
 #include "raycast.c"
-
-// snell's law
-
-// I = (1 - K) I + K I
-
-typedef struct {
-	int retain;
-} CounterObject;
-
-CounterObject* create_object()
-{
-	CounterObject* value = malloc(sizeof(CounterObject));
-	value->retain = 1;
-}
-
-void object_retain(CounterObject* value) {
-	value-> retain ++;
-}
-void object_release(CounterObject* value) {
-	value-> retain --;
-	if(value -> retain <= 0)
-		free(value);
-}
 
 // diffuse reflection
 // used for a rough surface, light bounces off in random directions

@@ -1,17 +1,12 @@
 
 
-#define SPEC_FALL 1
-#define SPEC_K 0.2
+#define SPEC_FALL 15
+#define SPEC_K 0.4
 #define DIFFUSE_K 1.0
 
 #define AMBIENT_R 0.15
 #define AMBIENT_G 0.15
 #define AMBIENT_B 0.15
-
-typedef struct {
-	float point[3];
-	Object* object;
-} Intersection;
 
 float intersect_sphere(float* c, float R, float* r0, float* rd)
 {
@@ -40,15 +35,18 @@ float intersect_plane(float a, float b, float c, float d, float* r0, float* rd)
 }
 
 // returns the scene's object id that intersects the ray
-Intersection send_ray(Scene scene, float* r0, float* rd, int avoid)
+// the basic object finding loop now lives here
+void send_ray(Intersection* i, Scene scene, float* r0, float* rd, int avoid)
 {
 	float best_t = INFINITY;
-	Object* closest = NULL;
-
+	int closest_id = -1;
 	int k;
+	
 	for(k = 0; k < scene.num_objects; k ++)
 	{
-		if(k == avoid) continue;
+		if(k == avoid) {
+			continue;
+		}
 
 		float t = -1;
 		Object o = scene.objects[k];
@@ -67,33 +65,32 @@ Intersection send_ray(Scene scene, float* r0, float* rd, int avoid)
 		if(t > 0 && t < best_t)
 		{
 			best_t = t;
-			closest = &o;
+			closest_id = k;
 		}
 	}
 	
-	Intersection i; // an intersection struct
-	scale(rd, best_t, i.point); // scale rd by best_t
-	add(i.point, r0, i.point); // then add that to r0
+	scale(rd, best_t, i->point); // scale rd by best_t
+	add(i->point, r0, i->point); // then add that to r0
 	
-	i.object = closest;
-	
-	return i;
+	i->object = &(scene.objects[closest_id]);
+	i->object_id = closest_id;
 }
 
-Object get_color_ray(float* color, Scene scene, float* r0, float* rd)
-{
-	Intersection intersection = send_ray(scene, r0, rd, -1);
 
-	if(intersection.object == NULL)
+void get_color_ray(float* color, Scene scene, float* r0, float* rd, float opacity_left, int avoid)
+{
+	Intersection intersection;
+	send_ray(&intersection, scene, r0, rd, avoid);
+
+	if(intersection.object_id == -1)
 	{
 		color[0] = scene.background_color[0];
 		color[1] = scene.background_color[1];
 		color[2] = scene.background_color[2];
-		return NULL;
+		return;
 	}
 
-	Object closest = *(intersection.object);
-
+	Object* closest = intersection.object;
 	// do lighting on the object
 	float lighting[3];
 	lighting[0] = AMBIENT_R;
@@ -106,40 +103,60 @@ Object get_color_ray(float* color, Scene scene, float* r0, float* rd)
 		Object light = scene.lights[k];
 
 		float light_dir[3];
+		float dir_to_light[3];
 		
-		// this is flipped on purpose to facilitate finding a shadow
-		subtract(light.position, intersect_point, light_dir);
+		// distance to light
+		float dist[3];
+		subtract(light.position, intersection.point, dist);
+		float distance_to_light = length(dist);
+		
+		subtract(intersection.point, light.position, light_dir);
 		normalize(light_dir);
+		scale(light_dir, -1, dir_to_light);
 
 		// test for a shadow intersection
-		float shadow_t;
-		int shadow_object_id = send_ray(&shadow_t, scene, intersect_point, light_dir, closest_id);
+		Intersection shadow;
+		send_ray(&shadow, scene, intersection.point, dir_to_light, intersection.object_id);
 
 		// if there is an object between this object and the light, don't light it
-		if(shadow_object_id != -1) continue;
+		if(shadow.object_id != -1) {
+			// make sure that this object isn't actually behind the light
+			
+			subtract(shadow.point, intersection.point, dist);
+			float distance_to_object = length(dist);
 
-		// flip the light vector to point in the proper direction
-		scale(light_dir, -1, light_dir);
+			if(distance_to_light > distance_to_object)
+				continue;
+		}
 
 		float normal[3];
 
-		if(closest.kind == T_SPHERE)
+		if(closest->kind == T_SPHERE)
 		{
-			subtract(intersection.point, closest.position, normal);
+			subtract(intersection.point, closest->position, normal);
 			normalize(normal);
 		}
-		else if(closest.kind == T_PLANE)
+		else if(closest->kind == T_PLANE)
 		{
-			normal[0] = closest.a;
-			normal[1] = closest.b;
-			normal[2] = closest.c;
+			normal[0] = closest->a;
+			normal[1] = closest->b;
+			normal[2] = closest->c;
 		}
 
 		// (Xs - Xl) / ||Xs-Xl||
 
 		float incident_light_level = -dot(normal, light_dir);
 		if(incident_light_level > 0)
-		{			
+		{
+			float Ic[3];
+			Ic[0] = 0;
+			Ic[1] = 0;
+			Ic[2] = 0;
+
+			// calculate attenuation
+				float attenuation = 1.0;
+				
+
 			// do specular highlight
 				float spec[3];
 
@@ -154,23 +171,26 @@ Object get_color_ray(float* color, Scene scene, float* r0, float* rd)
 
 				float speck = powf(dot(r, v), SPEC_FALL) * SPEC_K;
 				scale(light.color, speck, spec);
-				multiply(closest.specular, spec, spec);
+				multiply(closest->specular, spec, spec);
 				
 			// do diffuse lighting
 				float diffuse[3];
-				scale(closest.color, incident_light_level * DIFFUSE_K, diffuse);
+				scale(closest->color, incident_light_level * DIFFUSE_K, diffuse);
 			
+
 			if(speck > 0)
-				add(spec, lighting, lighting);
-			add(diffuse, lighting, lighting);
+			{
+				add(spec, diffuse, Ic);
+				scale(Ic, attenuation, Ic);
+			}
+			else
+				scale(diffuse, attenuation, Ic);
+
+			add(Ic, lighting, lighting);
 		}
 	}
-
-	color[0] = lighting[0];
-	color[1] = lighting[1];
-	color[2] = lighting[2];
-
-	return closest;
+	scale(lighting, 1, color);
+	//scale(lighting, 1 - closest->transparency, color);
 }
 
 void raycast(Scene scene, char* outfile, PPMmeta fileinfo)
@@ -215,28 +235,16 @@ void raycast(Scene scene, char* outfile, PPMmeta fileinfo)
 			
 			float colors[3];
 
-			Object* closest = get_color_ray(colors, scene, r0, rd);
-			//printf("%f %f %f\n", rd[0], rd[1], rd[2]);
+			get_color_ray(colors, scene, r0, rd, 1.0, -1);
 
 			colors[0] = clamp(colors[0], 0.0, 1.0);
 			colors[1] = clamp(colors[1], 0.0, 1.0);
 			colors[2] = clamp(colors[2], 0.0, 1.0);
 
 			Pixel pixel = data[i * N + j];
-			
-			if(closest == NULL)
-			{
-				pixel.r = (unsigned char) (colors[0] * 255);
-				pixel.g = (unsigned char) (colors[1] * 255);
-				pixel.b = (unsigned char) (colors[2] * 255);
-			}
-			else
-			{
-				pixel.r = (unsigned char) (colors[0] * 255 * (1 - closest->transparency));
-				pixel.g = (unsigned char) (colors[1] * 255 * (1 - closest->transparency));
-				pixel.b = (unsigned char) (colors[2] * 255 * (1 - closest->transparency));
-			}
-			
+			pixel.r = (unsigned char) (colors[0] * 255);
+			pixel.g = (unsigned char) (colors[1] * 255);
+			pixel.b = (unsigned char) (colors[2] * 255);
 			data[i * N + j] = pixel;
 			
 		}
