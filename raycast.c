@@ -268,6 +268,24 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd)
 	}
 
 	scale(lighting, 1 - closest->e, color);
+	// do reflection here
+	if(closest->a > 0)
+	{
+		float r[3];
+		scale(rd, -1, rd);
+		scale(normal, dot(rd, normal) * 2, r);
+		subtract(rd, r, r);
+		
+		float reflect_color[3];
+		
+		float new_point[3];
+		add(intersection.point, r, new_point);
+		get_color_ray(reflect_color, scene, new_point, r);
+		scale(reflect_color, closest->a, reflect_color);
+	}
+	
+	add(reflect_color, color, color);
+	
 	add(added_color, color, color);
 }
 
