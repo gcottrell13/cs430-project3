@@ -69,6 +69,7 @@ void send_ray(Intersection* i, Scene scene, float* r0, float* rd, int avoid)
 {
 	float best_t = INFINITY;
 	int k;
+	i->object_id = -1;
 	
 	for(k = 0; k < scene.num_objects; k ++)
 	{
@@ -109,13 +110,14 @@ void send_ray(Intersection* i, Scene scene, float* r0, float* rd, int avoid)
 	i->object = &(scene.objects[i->object_id]);
 }
 
-int recursion = 0;
-void get_color_ray(float* color, Scene scene, float* r0, float* rd)
+void get_color_ray(float* color, Scene scene, float* r0, float* rd, int recursion)
 {
-	if(--recursion <= 0) return;
+	if(recursion <= 0){
+		vector_copy(scene.ambient_color, color);
+		return;
+	} 
 
 	Intersection intersection;
-	intersection.object_id = -1;
 	send_ray(&intersection, scene, r0, rd, -1);
 
 	if(intersection.object_id == -1)
@@ -165,7 +167,7 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd)
 		
 		// continue on through the object
 		add(intersection.point, refracted_ray, new_point);
-		get_color_ray(added_color, scene, new_point, refracted_ray);
+		get_color_ray(added_color, scene, new_point, refracted_ray, recursion - 1);
 		scale(added_color, closest->e, added_color);
 	}
 
@@ -177,7 +179,7 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd)
 
 		float light_dir[3];
 		float dir_to_light[3];
-		float shadow_amt = 0.0;
+		//float shadow_amt = 0.0;
 
 		// distance to light
 		float dist[3];
@@ -201,9 +203,9 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd)
 
 			if(distance_to_light > distance_to_object)
 			{
-				if(shadow.object->e == 0)
+				//if(shadow.object->e == 0)
 					continue;
-				shadow_amt = 1 - shadow.object->e;
+				//shadow_amt = 1 - shadow.object->e;
 			}
 		}
 
@@ -256,35 +258,37 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd)
 				
 			if(speck > 0)
 			{
+				// spec
 				add(spec, diffuse, Ic);
 				scale(Ic, attenuation, Ic);
 			}
 			else
 				scale(diffuse, attenuation, Ic);
 			
-			scale(Ic, 1-shadow_amt, Ic);
+			//scale(Ic, 1-shadow_amt, Ic);
 			add(Ic, lighting, lighting);
 		}
 	}
 
 	scale(lighting, 1 - closest->e, color);
+
 	// do reflection here
-	if(closest->a > 0)
+	if(closest->c > 0)
 	{
-		float r[3];
-		scale(rd, -1, rd);
-		scale(normal, dot(rd, normal) * 2, r);
-		subtract(rd, r, r);
+		float reflect_r[3];
+		scale(rd, -1, reflect_r);
+		scale(normal, dot(reflect_r, normal) * 2, reflect_r);
+		subtract(rd, reflect_r, reflect_r);
 		
 		float reflect_color[3];
 		
-		float new_point[3];
-		add(intersection.point, r, new_point);
-		get_color_ray(reflect_color, scene, new_point, r);
-		scale(reflect_color, closest->a, reflect_color);
+		float reflect_new_point[3];
+		add(intersection.point, reflect_r, reflect_new_point);
+		get_color_ray(reflect_color, scene, reflect_new_point, reflect_r, recursion - 1);
+		scale(reflect_color, closest->c, reflect_color);
+
+		add(reflect_color, color, color);
 	}
-	
-	add(reflect_color, color, color);
 	
 	add(added_color, color, color);
 }
@@ -331,8 +335,7 @@ void raycast(Scene scene, char* outfile, PPMmeta fileinfo)
 			
 			float colors[3];
 
-			recursion = 7;
-			get_color_ray(colors, scene, r0, rd);
+			get_color_ray(colors, scene, r0, rd, 5);
 
 			colors[0] = clamp(colors[0], 0.0, 1.0);
 			colors[1] = clamp(colors[1], 0.0, 1.0);

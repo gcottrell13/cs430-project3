@@ -172,6 +172,8 @@ Scene read_scene(char* json_name)
 
 		float shinyness = 20;
 
+		float reflectivity = 0;
+
 		float transparency = 0;
 		float ior = 1;
 
@@ -261,7 +263,7 @@ Scene read_scene(char* json_name)
 				else if(strcmp(key, "reflectivity") == 0)
 				{
 					float value = next_number(json);
-					shinyness = value;
+					reflectivity = value;
 				}
 				else if(strcmp(key, "angular-a0") == 0)
 				{
@@ -439,7 +441,7 @@ Scene read_scene(char* json_name)
 			new_object.position[2] = position[2];
 			new_object.a = shinyness;
 			new_object.b = ior;
-			new_object.c = 0;
+			new_object.c = reflectivity;
 			new_object.d = radius;
 
 			new_object.e = transparency;
@@ -479,7 +481,7 @@ Scene read_scene(char* json_name)
 
 			new_object.a = shinyness;
 			new_object.b = ior;
-			new_object.c = 0;
+			new_object.c = reflectivity;
 			new_object.d = normal[0] * position[0] + normal[1] * position[1] + normal[2] * position[2];
 			
 			new_object.e = transparency;
