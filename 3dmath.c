@@ -85,6 +85,26 @@ void normalize(float* a)
 	a[2] /= len;
 }
 
+
+float* quadratic_formula(float a, float b, float c)
+{
+	float* results = malloc(sizeof(float) * 2);
+	
+	float det = sqr(b) - 4 * a * c;
+	
+	if(det < 0) {
+		results[0] = NAN;
+		return results;
+	}
+	
+	det = sqrt(det);
+	
+	results[0] = (-b - det) / (2 * a);
+	results[1] = (-b + det) / (2 * a);
+	
+	return results;
+}
+
 void interpolate(float* a, float* b, float i, float* c)
 {
 	c[0] = b[0] * i + a[0] * (1 - i);
@@ -118,25 +138,3 @@ void smellit(float* a, float* n, float n1, float n2, float* b)
 	scale(b, -1, b);
 	scale(a, -1, a);
 }
-
-
-float* quadratic_formula(float a, float b, float c)
-{
-	float* results = malloc(sizeof(float) * 2);
-	
-	float det = sqr(b) - 4 * a * c;
-	
-	if(det < 0) {
-		results[0] = NAN;
-		return results;
-	}
-	
-	det = sqrt(det);
-	
-	results[0] = (-b - det) / (2 * a);
-	results[1] = (-b + det) / (2 * a);
-	
-	return results;
-}
-
-

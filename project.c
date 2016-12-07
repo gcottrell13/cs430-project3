@@ -3,8 +3,8 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_OBJECTS 11
-#define MAX_LIGHTS 10
+#define MAX_OBJECTS 128
+#define MAX_LIGHTS 128
 
 typedef struct {
 	int kind;

@@ -132,6 +132,13 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, int recursio
 	Object* closest = intersection.object;
 	
 	float normal[3];
+	// do lighting on the object
+	float lighting[3];
+	float added_color[3]; // from any transparency that might happen
+	int k;
+	float reflect_color[3];
+	int number_contributors = 1;
+
 	// a test to see how we need to calculate the normal
 	if(closest->kind == T_SPHERE)
 	{
@@ -143,14 +150,7 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, int recursio
 		vector_copy(closest->direction, normal);
 	}
 	
-	// do lighting on the object
-	float lighting[3];
 	vector_copy(scene.ambient_color, lighting);
-
-	float added_color[3]; // from any transparency that might happen	
-	added_color[0] = 0;
-	added_color[1] = 0;
-	added_color[2] = 0;
 
 	// transparency stuff goes here
 	if(closest->e > 0)
@@ -169,10 +169,13 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, int recursio
 		add(intersection.point, refracted_ray, new_point);
 		get_color_ray(added_color, scene, new_point, refracted_ray, recursion - 1);
 		scale(added_color, closest->e, added_color);
+		added_color[0] = clamp(added_color[0], 0.0, 1.0);
+		added_color[1] = clamp(added_color[1], 0.0, 1.0);
+		added_color[2] = clamp(added_color[2], 0.0, 1.0);
+		number_contributors ++;
 	}
 
 	// loop through the lights
-	int k;
 	for(k = 0; k < scene.num_lights; k ++)
 	{
 		Object light = scene.lights[k];
@@ -216,9 +219,6 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, int recursio
 		if(incident_light_level > 0)
 		{
 			float Ic[3];
-			Ic[0] = 0;
-			Ic[1] = 0;
-			Ic[2] = 0;
 
 			// calculate attenuation
 				float ang_att = 1;
@@ -270,8 +270,6 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, int recursio
 		}
 	}
 
-	scale(lighting, 1 - closest->e, color);
-
 	// do reflection here
 	if(closest->c > 0)
 	{
@@ -280,17 +278,24 @@ void get_color_ray(float* color, Scene scene, float* r0, float* rd, int recursio
 		scale(normal, dot(reflect_r, normal) * 2, reflect_r);
 		subtract(rd, reflect_r, reflect_r);
 		
-		float reflect_color[3];
-		
 		float reflect_new_point[3];
 		add(intersection.point, reflect_r, reflect_new_point);
 		get_color_ray(reflect_color, scene, reflect_new_point, reflect_r, recursion - 1);
+		
 		scale(reflect_color, closest->c, reflect_color);
-
-		add(reflect_color, color, color);
+		reflect_color[0] = clamp(reflect_color[0], 0.0, 1.0);
+		reflect_color[1] = clamp(reflect_color[1], 0.0, 1.0);
+		reflect_color[2] = clamp(reflect_color[2], 0.0, 1.0);
+		number_contributors ++;
 	}
-	
+
+	scale(lighting, 1 - (closest->e), lighting);
+
+	add(lighting, color, color);
 	add(added_color, color, color);
+	add(reflect_color, color, color);
+
+	scale(color, 1/number_contributors, color);
 }
 
 void raycast(Scene scene, char* outfile, PPMmeta fileinfo)
