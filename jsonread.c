@@ -3,6 +3,7 @@
 #define T_SPHERE 2
 #define T_PLANE 3
 #define T_LIGHT 4
+#define T_CYLINDER 5
 
 int line = 1;
 
@@ -164,11 +165,25 @@ Scene read_scene(char* json_name)
 		specular[2] = 1.0;
 
 		float angular_a0 = 0;
+		float theta = 0;
 		float radial_a0 = 0;
 		float radial_a1 = 0;
 		float radial_a2 = 1;
 
+		float shinyness = 20;
+
+		float reflectivity = 0;
+
 		float transparency = 0;
+		float ior = 1;
+
+		// for cylinders
+		int set_height = 0;
+		float height = 0;
+		int set_basis1 = 0;
+		int set_basis2 = 0;
+		float basis1[3];
+		float basis2[3];
 
 		Object new_object = scene.objects[scene.num_objects];
 		
@@ -180,6 +195,8 @@ Scene read_scene(char* json_name)
 			objtype = T_PLANE;
 		} else if(strcmp(type_value, "light") == 0) {
 			objtype = T_LIGHT;
+		} else if(strcmp(type_value, "cylinder") == 0) {
+			objtype = T_CYLINDER;
 		} else {
 			
 			fprintf(stderr, "Unknown type \"%s\" on line %d\n", type_value, line);
@@ -237,11 +254,26 @@ Scene read_scene(char* json_name)
 						camera_height = value;
 						set_camera_height = 1;
 					}
+					if(objtype == T_CYLINDER)
+					{
+						height = next_number(json);
+						set_height = 1;
+					}
+				}
+				else if(strcmp(key, "reflectivity") == 0)
+				{
+					float value = next_number(json);
+					reflectivity = value;
 				}
 				else if(strcmp(key, "angular-a0") == 0)
 				{
 					float value = next_number(json);
 					angular_a0 = value;
+				}
+				else if(strcmp(key, "theta") == 0)
+				{
+					float value = next_number(json);
+					theta = value;
 				}
 				else if(strcmp(key, "radial-a0") == 0)
 				{
@@ -258,10 +290,15 @@ Scene read_scene(char* json_name)
 					float value = next_number(json);
 					radial_a2 = value;
 				}
-				else if(strcmp(key, "transparency") == 0)
+				else if(strcmp(key, "refractivity") == 0)
 				{
 					float value = next_number(json);
 					transparency = value;
+				}
+				else if(strcmp(key, "ior") == 0)
+				{
+					float value = next_number(json);
+					ior = value;
 				}
 				else if(strcmp(key, "specular_color") == 0)
 				{
@@ -294,6 +331,24 @@ Scene read_scene(char* json_name)
 					position[1] = v3[1];
 					position[2] = v3[2];
 					set_position = 1;
+					free(v3);
+				}
+				else if(strcmp(key, "basis1") == 0)
+				{
+					float* v3 = next_vector(json);
+					basis1[0] = v3[0];
+					basis1[1] = v3[1];
+					basis1[2] = v3[2];
+					set_basis1 = 1;
+					free(v3);
+				}
+				else if(strcmp(key, "basis2") == 0)
+				{
+					float* v3 = next_vector(json);
+					basis2[0] = v3[0];
+					basis2[1] = v3[1];
+					basis2[2] = v3[2];
+					set_basis2 = 1;
 					free(v3);
 				}
 				else if(strcmp(key, "normal") == 0 || strcmp(key, "direction") == 0)
@@ -384,9 +439,12 @@ Scene read_scene(char* json_name)
 			new_object.position[0] = position[0];
 			new_object.position[1] = position[1];
 			new_object.position[2] = position[2];
+			new_object.a = shinyness;
+			new_object.b = ior;
+			new_object.c = reflectivity;
 			new_object.d = radius;
 
-			new_object.transparency = transparency;
+			new_object.e = transparency;
 		}
 		if(objtype == T_PLANE)
 		{
@@ -416,12 +474,77 @@ Scene read_scene(char* json_name)
 			new_object.specular[1] = specular[1];
 			new_object.specular[2] = specular[2];
 			
-			new_object.a = normal[0];
-			new_object.b = normal[1];
-			new_object.c = normal[2];
+			normalize(normal);
+			new_object.direction[0] = normal[0];
+			new_object.direction[1] = normal[1];
+			new_object.direction[2] = normal[2];
+
+			new_object.a = shinyness;
+			new_object.b = ior;
+			new_object.c = reflectivity;
 			new_object.d = normal[0] * position[0] + normal[1] * position[1] + normal[2] * position[2];
 			
-			new_object.transparency = transparency;
+			new_object.e = transparency;
+		}
+		if(objtype == T_CYLINDER)
+		{
+			if(set_color != 1)
+			{
+				fprintf(stderr, "Object must have a color! Line %d\n", line);
+				exit(1);
+			}
+			if(set_position != 1)
+			{
+				fprintf(stderr, "Object must have a position! Line %d\n", line);
+				exit(1);
+			}
+			if(set_basis1 != 1)
+			{
+				fprintf(stderr, "Object must have a basis vector 1! Line %d\n", line);
+				exit(1);
+			}
+			if(set_basis2 != 1)
+			{
+				fprintf(stderr, "Object must have a basis vector 2! Line %d\n", line);
+				exit(1);
+			}
+			if(set_height != 1)
+			{
+				fprintf(stderr, "Object must have a height! Line %d\n", line);
+				exit(1);
+			}
+			if(set_radius != 1)
+			{
+				fprintf(stderr, "Object must have a radius! Line %d\n", line);
+				exit(1);
+			}
+
+
+			new_object.color[0] = color[0];
+			new_object.color[1] = color[1];
+			new_object.color[2] = color[2];
+
+			new_object.specular[0] = specular[0];
+			new_object.specular[1] = specular[1];
+			new_object.specular[2] = specular[2];
+			
+			new_object.position[0] = position[0];
+			new_object.position[1] = position[1];
+			new_object.position[2] = position[2];
+
+			normalize(basis1);
+			normalize(basis2);
+
+			new_object.direction[0] = basis1[0];
+			new_object.direction[1] = basis1[1];
+			new_object.direction[2] = basis1[2];
+
+			new_object.a = basis2[0];
+			new_object.b = basis2[1];
+			new_object.c = basis2[2];
+			new_object.d = height / 2.0;
+			new_object.e = radius;
+
 		}
 		if(objtype == T_LIGHT)
 		{
@@ -436,8 +559,6 @@ Scene read_scene(char* json_name)
 				exit(1);
 			}
 			
-			// calculate the properties of the plane
-
 			new_object.color[0] = color[0];
 			new_object.color[1] = color[1];
 			new_object.color[2] = color[2];
@@ -445,17 +566,22 @@ Scene read_scene(char* json_name)
 			new_object.position[0] = position[0];
 			new_object.position[1] = position[1];
 			new_object.position[2] = position[2];
+			
+			normalize(normal);
+			new_object.direction[0] = normal[0];
+			new_object.direction[1] = normal[1];
+			new_object.direction[2] = normal[2];
 			//normalize(normal);
 			new_object.a = radial_a2;
 			new_object.b = radial_a1;
 			new_object.c = radial_a0;
 			new_object.d = angular_a0;
-			
+			new_object.e = theta == 0 ? 0 : cos(deg2rad(theta));
 		}
 		
 		// increment number to move to the next object
 
-		if(objtype == T_SPHERE || objtype == T_PLANE)
+		if(objtype == T_SPHERE || objtype == T_PLANE || objtype == T_CYLINDER)
 		{
 			if(scene.num_objects == MAX_OBJECTS){
 				fprintf(stderr, "Error: Too many objects!\n");

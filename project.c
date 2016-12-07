@@ -4,19 +4,15 @@
 #include <ctype.h>
 
 #define MAX_OBJECTS 128
-#define MAX_LIGHTS 10
+#define MAX_LIGHTS 128
 
 typedef struct {
 	int kind;
 	float color[3]; // also diffuse color for non-lights
 	float position[3];
 	float direction[3]; // for lights only
-	float a;
-	float b;
-	float c;
-	float d;
+	float a, b, c, d, e;
 	float specular[3];
-	float transparency;
 } Object;
 
 typedef struct {
@@ -26,7 +22,7 @@ typedef struct {
 	Object lights[MAX_LIGHTS + 1];
 	float camera_width;
 	float camera_height;
-	float background_color[3]; // for fun!
+	float ambient_color[3]; // for fun!
 } Scene;
 
 typedef struct {
@@ -65,14 +61,16 @@ int main(int argc, char** argv)
 	
 	Scene scene = read_scene(argv[3]);
 
-	printf("Read in %d objects\n", scene.num_objects);
+	printf("Read in %d items:\n", scene.num_objects + scene.num_lights);
+	printf("   %d objects\n", scene.num_objects);
+	printf("   %d lights\n", scene.num_lights);
 
-	scene.background_color[0] = 0.7;
-	scene.background_color[1] = 0.51;
-	scene.background_color[2] = 0.6;
+	scene.ambient_color[0] = 0.15;
+	scene.ambient_color[1] = 0.15;
+	scene.ambient_color[2] = 0.15;
 	
 	raycast(scene, argv[4], fileinfo);
-	
+
 	return 0;
 }
 
